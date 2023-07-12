@@ -1,0 +1,285 @@
+import time
+import tkinter as tk
+import tkinter.ttk as ttk
+
+import numpy as np
+
+folder_path = "/Users/tokurakento/Desktop/dijkstra/109files/"
+# folder_path = "109files/"
+adjlist_path = folder_path + "adjlist.txt"
+stations_path = folder_path + "stations.txt"
+adjlist = open(adjlist_path, "r", encoding="UTF-8")
+stations = open(stations_path, "r", encoding="UTF-8")
+
+station_list = []  # visited, from, cost
+is_visited = []
+station_name_list = []  # 駅名リスト, txtから取得
+adj_list = []  # 辺のリスト, txtから取得
+route_list = []  # 最短経路のリスト, [駅番号, コスト]
+
+
+def dijkstra(now, end):
+    adj = adj_list[now]  # [[to, cost],[...]]
+    now_cost = station_list[now][2]  # 探索元のコスト
+    for i in adj:  # [to, cost]
+        to_station = i[0]
+        to_cost = i[1]
+        if station_list[to_station][0]:  # visited
+            continue
+        cost = to_cost + now_cost  # 探索元経由の場合の、探索先コスト
+        target_cost = station_list[to_station][2]  # 探索先の持つ最小コスト
+        if cost < target_cost:  # 探索元経由の方がコストが低い場合
+            station_list[to_station][1] = now  # from
+            station_list[to_station][2] = cost
+    minpos = [-1, float("inf")]
+    for i in range(len(station_name_list)):
+        if station_list[i][0] == 1:  # visited
+            continue
+        if station_list[i][2] < minpos[1]:
+            minpos[0] = i
+            minpos[1] = station_list[i][2]
+    if minpos[0] == -1:  # minposが見つからなかった場合
+        return
+    station_list[minpos[0]][0] = 1  # 探索先をvisitedに
+    dijkstra(minpos[0], end)
+
+
+def dijkstra_mat(graph, start, end):
+    # 初期化
+    n = len(graph)
+    visited = [False] * n
+    distance = [float("inf")] * n
+    distance[start] = 0
+
+    # ダイクストラ法
+    begin = start
+    while True:
+        # 未処理の中で最小の距離を持つ頂点を探す
+        next = -1
+        min_distance = float("inf")
+        for j in range(n):
+            if not visited[j] and distance[j] < min_distance:
+                min_distance = distance[j]
+                next = j
+
+        # 訪問済みにする
+        visited[next] = True
+        station_list[next][0] = 1  # visited
+        station_list[next][1] = start  # from
+        station_list[next][2] = min_distance  # cost
+        start = next
+        if next == end:
+            break
+
+        for v in range(n):
+            if not visited[v] and graph[next][v] != 0:
+                new_distance = distance[next] + graph[next][v]
+                if new_distance < distance[v]:
+                    distance[v] = new_distance
+
+    # return distance
+
+
+def floyd_warshall(graph):
+    n = len(graph)
+    dist = [[float("inf") for j in range(n)] for i in range(n)]
+    for i in range(n):
+        for j in range(n):
+            dist[i][j] = graph[i][j]
+    for k in range(n):
+        for i in range(n):
+            for j in range(n):
+                dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
+    return dist
+
+
+def set_adjpare_list():
+    for station in stations.readlines():
+        name = station.strip().split(" ")[1]
+        station_name_list.append(name)
+    for adj in adjlist.readlines():
+        adj_pares = adj.strip().split(" ")
+        pares_len = len(adj_pares)
+        buf = []
+        for j in range(1, pares_len):
+            pare = adj_pares[j].split(",")
+            # station_name = station_name_list[int(pare[0])-1]
+            station_name = int(pare[0]) - 1  # 0オリジン
+            cost = int(pare[1])
+            buf.append([station_name, cost])
+        adj_list.append(buf)
+    # print(station_name_list)
+    # print(adj_list)
+
+
+def set_route(begin, end, method):
+    print(
+        f"from {station_name_list[begin]}({begin}) to {station_name_list[end]}({end})\nmethod = {method}"
+    )
+    station_list.clear()  # visited, from, costを記録した経路リスト
+    for i in range(len(station_name_list)):
+        station_list.append([0, -1, float("inf")])  # visited, from, cost
+    is_visited.clear()
+    station_list[begin][0] = 1  # visited
+    station_list[begin][2] = 0  # cost
+
+    global adj_vec  # 隣接行列
+    adj_vec = np.zeros((len(station_name_list), len(station_name_list)))
+    for i in range(len(station_name_list)):
+        for j in adj_list[i]:
+            adj_vec[i][j[0]] = j[1]
+    # print(adj_vec)
+
+    time_sta = time.time()
+    if method == "Dijkstra(List)":
+        dijkstra(begin, end)
+    elif method == "Dijkstra(Matrix)":
+        dijkstra_mat(adj_vec, begin, end)
+    elif method == "Floyd-Warshall":
+        np.place(adj_vec, adj_vec == 0, float("inf"))
+        time_sta = time.time()
+        res = floyd_warshall(adj_vec)
+        print(res[begin][end])
+        station_list[end] = [1, begin, res[begin][end]]
+        station_list[begin] = [1, -1, 0]
+    time_end = time.time()
+    label_result.config(text=f"処理時間\n   {(time_end - time_sta):.6f} sec")
+    print(station_list)
+    pointer = end
+    route_list.clear()
+    while 1:
+        route_list.append([pointer, station_list[pointer][2]])
+        if pointer == begin:
+            break
+        pointer = station_list[pointer][1]
+    route_list.reverse()
+    # print(route_list)
+
+
+def show_result():
+    error_flag = 0
+    if from_name.get() == "":
+        label_from.config(text="駅名が未入力です")
+        error_flag = 1
+    else:
+        label_from.config(text="")
+    if to_name.get() == "":
+        label_to.config(text="駅名が未入力です")
+        error_flag = 1
+    else:
+        label_to.config(text="")
+    if error_flag:
+        return
+    station_num = [-1, -1]
+    for i in range(len(station_name_list)):
+        target_name = station_name_list[i]
+        if from_name.get() == target_name:
+            station_num[0] = i
+        if to_name.get() == target_name:
+            station_num[1] = i
+    if station_num[0] == -1:
+        label_from.config(text="該当する駅名が存在しません")
+        error_flag = 1
+    else:
+        label_from.config(text="")
+    if station_num[1] == -1:
+        label_to.config(text="該当する駅名が存在しません")
+        error_flag = 1
+    else:
+        label_to.config(text="")
+    if error_flag:
+        return
+    # 視点と終点が正しく入力されると以下に進める
+    set_route(station_num[0], station_num[1], combo_str.get())  # 最短経路を計算
+    # 最短経路を表示
+    label_str = ""
+    for i in range(len(route_list)):
+        target_id = route_list[i][0]
+        target_cost = route_list[i][1]
+        label_str = label_str + f"{station_name_list[target_id]} {target_cost}分\n"
+        if i < len(route_list) - 1:
+            label_str = label_str + f"  | {route_list[i+1][1]-target_cost}分\n"
+    text.delete("1.0", "end")
+    text.insert("end", label_str)
+
+
+def main():
+    set_adjpare_list()
+    width = 480
+    height = 600
+
+    route = tk.Tk()
+    route.title("tokyu station")
+    route.geometry(str(width) + "x" + str(height))
+
+    frame_find = tk.Frame(route, pady=10, padx=5)
+
+    frame_find_1 = tk.Frame(frame_find, pady=2, padx=5)
+    label = tk.Label(frame_find_1, text="出発地")
+    label.pack(side=tk.LEFT)
+    global from_name
+    from_name = tk.StringVar("")
+    entry = tk.Entry(frame_find_1, textvariable=from_name, width=10)
+    entry.pack(side=tk.RIGHT)
+    frame_find_1.pack(side=tk.TOP)
+
+    frame_find_1_mes = tk.Frame(frame_find, pady=0, padx=5)
+    global label_from
+    label_from = tk.Label(frame_find_1_mes, text="", fg="red")
+    label_from.pack()
+    frame_find_1_mes.pack(side=tk.TOP)
+
+    frame_spacer = tk.Frame(frame_find, pady=0, padx=5)
+    label = tk.Label(frame_spacer, text="")
+    label.pack()
+    frame_spacer.pack(side=tk.TOP)
+
+    frame_find_2 = tk.Frame(frame_find, pady=2, padx=5)
+    label = tk.Label(frame_find_2, text="目的地")
+    label.pack(side=tk.LEFT)
+    global to_name
+    to_name = tk.StringVar("")
+    entry = tk.Entry(frame_find_2, textvariable=to_name, width=10)
+    entry.pack(side=tk.RIGHT)
+    frame_find_2.pack(side=tk.TOP)
+
+    frame_find_2_mes = tk.Frame(frame_find, pady=0, padx=5)
+    global label_to
+    label_to = tk.Label(frame_find_2_mes, text="", fg="red")
+    label_to.pack(side=tk.BOTTOM)
+    frame_find_2_mes.pack(side=tk.TOP)
+
+    frame_find_3 = tk.Frame(frame_find, pady=25, padx=5)
+    button = tk.Button(frame_find_3, text="検索", command=show_result)
+    button.pack(side=tk.BOTTOM)
+    frame_find_3.pack(side=tk.TOP)
+    option = ["Dijkstra(List)", "Dijkstra(Matrix)", "Floyd-Warshall"]  # 選択肢
+    global combo_str
+    combo_str = tk.StringVar()
+    combo = ttk.Combobox(
+        frame_find_3, values=option, textvariable=combo_str, state="readonly"
+    )
+    combo.set(option[0])
+    combo.pack(side=tk.TOP)
+
+    # from
+    frame_result = tk.Frame(frame_find, pady=0, padx=5)
+    global label_result
+    label_result = tk.Label(frame_result, text="処理時間\n  ", fg="white", bg="black")
+    label_result.pack(side=tk.TOP)
+    frame_result.pack(side=tk.TOP)
+    # end
+
+    frame_find.pack(side=tk.RIGHT)
+
+    frame_result = tk.Frame(route, pady=10, padx=10)
+    global text
+    text = tk.Text(frame_result, padx=10, height=59)
+    text.grid()
+    frame_result.pack(side=tk.RIGHT)
+
+    route.mainloop()
+
+
+if __name__ == "__main__":
+    main()
