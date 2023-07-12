@@ -44,15 +44,15 @@ def dijkstra(now, end):
     dijkstra(minpos[0], end)
 
 
-def dijkstra_mat(graph, start, end):
+def dijkstra_mat(graph, start):
     # 初期化
     n = len(graph)
     visited = [False] * n
     distance = [float("inf")] * n
     distance[start] = 0
+    visited_count = 0
 
     # ダイクストラ法
-    begin = start
     while True:
         # 未処理の中で最小の距離を持つ頂点を探す
         next = -1
@@ -64,12 +64,13 @@ def dijkstra_mat(graph, start, end):
 
         # 訪問済みにする
         visited[next] = True
+        visited_count += 1
+        if visited_count == n:
+            return
         station_list[next][0] = 1  # visited
         station_list[next][1] = start  # from
         station_list[next][2] = min_distance  # cost
         start = next
-        if next == end:
-            break
 
         for v in range(n):
             if not visited[v] and graph[next][v] != 0:
@@ -134,7 +135,7 @@ def set_route(begin, end, method):
     if method == "Dijkstra(List)":
         dijkstra(begin, end)
     elif method == "Dijkstra(Matrix)":
-        dijkstra_mat(adj_vec, begin, end)
+        dijkstra_mat(adj_vec, begin)
     elif method == "Floyd-Warshall":
         np.place(adj_vec, adj_vec == 0, float("inf"))
         time_sta = time.time()
